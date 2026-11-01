@@ -16,8 +16,7 @@ env:
   # ===================== CONFIGURACIÓN (todo fijo aquí) =====================
   # Carpeta donde pones tu disco (sin comillas dobles dentro).
   # Los nombres de archivo NO importan, pero deben ser copias exactas (se verifica el SHA-256):
-  #   Digimon World (USA):   .bin + .cue (los dos, en esta carpeta)
-  #   Digimon World (Japan): .iso
+  #   Digimon Rumble Arena (Europe): .bin + .cue (los dos, en esta carpeta)
   DISC_FOLDER: "/storage/emulated/0/Games"
   # Versión de la app: 1.0, 1.1, 1.2, ... (cámbiala en cada actualización)
   APP_VERSION: "1.0"
@@ -522,21 +521,32 @@ jobs:
           // El valor lo pone el workflow desde DISC_FOLDER (arriba en build.yml).
           const val DISC_FOLDER = "__DISC_FOLDER__"
 
-          // SHA-256 de los discos permitidos (los nombres de archivo no importan)
-          const val HASH_USA_BIN = "06084490ea0db34099b31495ccba4ec18fb0ff25c7683c508e9d2db93d4495f4"
-          const val HASH_USA_CUE = "82b297b9b499fea9c7f361a497b933b7f971394148212eca03e4798ddc0c98d1"
-          const val HASH_JP_ISO = "b5ff9ed251bced70c20eb911eab8ac3e5b77d7a140983d3b5dc31decac4837af"
+          // SHA-256 de los discos permitidos (los nombres de archivo no importan). Por ahora solo Europe; USA se agregará después
+          const val HASH_EU_BIN = "1303cf0fcad7e28f3863d9ffd16e15492f0aa57fb25eed078da7f69b5516d8c8"
+          const val HASH_EU_CUE = "2ee73c1e380690deca094ea976b5b9434e1e8062b606b922c977c6530d34b272"
           const val CORE_LIB = "libpcsx_rearmed_libretro_android.so"
 
           // Valores predeterminados de los ajustes
           const val RES_DEFECTO = 1   // 1x
-          const val TAM_DEFECTO = 100 // % tamaño de controles
-          const val OPA_DEFECTO = 30  // % opacidad de controles
+          const val TAM_DEFECTO = 109 // % tamaño de controles
+          const val OPA_DEFECTO = 17  // % opacidad de controles
           const val IDIOMA_DEFECTO = "en" // "en" = inglés, "es" = español
           const val JOY_ID = 1000 // clave donde se guarda la posición del joystick
+          const val LAYOUT_VERSION = 2 // súbelo cuando cambies la disposición predeterminada de los controles
 
           class Ajustes(ctx: Context) {
               private val p = ctx.getSharedPreferences("ajustes", Context.MODE_PRIVATE)
+
+              // Si cambia la disposición predeterminada, se descartan las posiciones guardadas antes
+              init {
+                  if (p.getInt("layout", 0) != LAYOUT_VERSION) {
+                      val ed = p.edit()
+                      for (k in p.all.keys) {
+                          if (k.startsWith("dx") || k.startsWith("dy")) ed.remove(k)
+                      }
+                      ed.putInt("layout", LAYOUT_VERSION).apply()
+                  }
+              }
 
               var resolucion: Int
                   get() = p.getInt("res", RES_DEFECTO)
@@ -925,25 +935,22 @@ jobs:
           // Posición predeterminada de cada botón (en dp, a 100 % de tamaño).
           // La cruceta fue reemplazada por el Joystick (clase Joystick, más arriba).
           private fun definiciones(): List<Def> {
-              val ia = Gravity.LEFT or Gravity.BOTTOM
               val da = Gravity.RIGHT or Gravity.BOTTOM
-              val iar = Gravity.LEFT or Gravity.TOP
               val dar = Gravity.RIGHT or Gravity.TOP
               val ca = Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM
               return listOf(
                   // Acción (por posición: A=abajo=Cruz, B=derecha=Círculo)
-                  Def("△", KeyEvent.KEYCODE_BUTTON_Y, 56, 56, da, 0, 0, 62, 138, true, 1f, R.drawable.ic_especial2),
-                  Def("✕", KeyEvent.KEYCODE_BUTTON_A, 56, 56, da, 0, 0, 62, 26, true, 1f, R.drawable.ic_salto),
-                  Def("□", KeyEvent.KEYCODE_BUTTON_X, 56, 56, da, 0, 0, 118, 82, true, 1f, R.drawable.ic_ataque),
-                  Def("○", KeyEvent.KEYCODE_BUTTON_B, 56, 56, da, 0, 0, 6, 82, true, 1f, R.drawable.ic_especial1),
+                  Def("△", KeyEvent.KEYCODE_BUTTON_Y, 56, 56, da, 0, 0, 45, 139, true, 1f, R.drawable.ic_especial2),
+                  Def("✕", KeyEvent.KEYCODE_BUTTON_A, 56, 56, da, 0, 0, 74, 38, true, 1f, R.drawable.ic_salto),
+                  Def("□", KeyEvent.KEYCODE_BUTTON_X, 56, 56, da, 0, 0, 160, 70, true, 1f, R.drawable.ic_ataque),
+                  Def("○", KeyEvent.KEYCODE_BUTTON_B, 56, 56, da, 0, 0, 110, 119, true, 1f, R.drawable.ic_especial1),
                   // Gatillos
-                  Def("L2", KeyEvent.KEYCODE_BUTTON_L2, 64, 40, iar, 16, 16, 0, 0, false, 1f, R.drawable.ic_digievolucion),
-                  Def("L1", KeyEvent.KEYCODE_BUTTON_L1, 64, 40, iar, 16, 64, 0, 0, false, 1f, R.drawable.ic_defensa),
-                  Def("R2", KeyEvent.KEYCODE_BUTTON_R2, 64, 40, dar, 0, 16, 16, 0, false, 1f),
+                  Def("L2", KeyEvent.KEYCODE_BUTTON_L2, 64, 40, da, 0, 0, 104, 190, false, 1f, R.drawable.ic_digievolucion),
+                  Def("L1", KeyEvent.KEYCODE_BUTTON_L1, 64, 40, da, 0, 0, 182, 136, false, 1f, R.drawable.ic_defensa),
                   Def("R1", KeyEvent.KEYCODE_BUTTON_R1, 64, 40, dar, 0, 64, 16, 0, false, 1f),
                   // Select / Start
-                  Def("SELECT", KeyEvent.KEYCODE_BUTTON_SELECT, 84, 34, ca, -100, 0, 0, 14, false, 1f),
-                  Def("START", KeyEvent.KEYCODE_BUTTON_START, 84, 34, ca, 100, 0, 0, 14, false, 1f)
+                  Def("SELECT", KeyEvent.KEYCODE_BUTTON_SELECT, 84, 34, ca, -83, 0, 0, 14, false, 1f),
+                  Def("START", KeyEvent.KEYCODE_BUTTON_START, 84, 34, ca, 118, 0, 0, 14, false, 1f),
               )
           }
 
@@ -1161,27 +1168,18 @@ jobs:
                       if (!carpeta.isDirectory || todos == null) return Resultado(null, false, false, false)
                       val archivos = todos.filter { it.isFile }.sortedBy { it.name.lowercase() }
                       val cues = archivos.filter { it.extension.lowercase() == "cue" }
-                      val isos = archivos.filter { it.extension.lowercase() == "iso" }
                       val bins = archivos.filter { it.extension.lowercase() == "bin" }
 
                       var cueValido: File? = null
                       for (f in cues) {
-                          if (sha256(f, avance) == HASH_USA_CUE) {
+                          if (sha256(f, avance) == HASH_EU_CUE) {
                               cueValido = f
                               break
                           }
                       }
-                      for (f in isos) {
-                          if (sha256(f, avance) == HASH_JP_ISO) {
-                              return Resultado(
-                                  Disco(f.absolutePath, "Digimon World (Japan) - " + f.name),
-                                  true, false, cueValido != null
-                              )
-                          }
-                      }
                       var binValido: File? = null
                       for (f in bins) {
-                          if (sha256(f, avance) == HASH_USA_BIN) {
+                          if (sha256(f, avance) == HASH_EU_BIN) {
                               binValido = f
                               break
                           }
@@ -1190,7 +1188,7 @@ jobs:
                           val ruta = prepararCue(cueValido, binValido)
                           if (ruta != null) {
                               return Resultado(
-                                  Disco(ruta, "Digimon World (USA) - " + binValido.name),
+                                  Disco(ruta, "Digimon Rumble Arena (Europe) - " + binValido.name),
                                   true, true, true
                               )
                           }
@@ -1221,7 +1219,7 @@ jobs:
                       )
                   )
 
-                  col.addView(texto("Digimon World", 28f, true))
+                  col.addView(texto("Digimon Rumble Arena", 28f, true))
                   val zona = LinearLayout(this)
                   zona.orientation = LinearLayout.VERTICAL
                   zona.gravity = Gravity.CENTER
@@ -1373,11 +1371,9 @@ jobs:
                       texto(
                           tr(
                               "Accepted discs (file names don't matter, but they must be the exact originals):\n" +
-                                  "• Digimon World (USA): .bin + .cue, both in this folder\n" +
-                                  "• Digimon World (Japan): .iso",
+                                  "• Digimon Rumble Arena (Europe): .bin + .cue, both in this folder",
                               "Discos aceptados (los nombres no importan, pero deben ser los archivos originales exactos):\n" +
-                                  "• Digimon World (USA): .bin + .cue, ambos en esta carpeta\n" +
-                                  "• Digimon World (Japan): .iso"
+                                  "• Digimon Rumble Arena (Europe): .bin + .cue, ambos en esta carpeta"
                           ), 13f, false, Color.LTGRAY
                       )
                   )
@@ -1531,7 +1527,7 @@ jobs:
                   js.editMode = editar
                   val ladoJoy = 150f * e
                   val lpJoy = FrameLayout.LayoutParams(dp(ladoJoy), dp(ladoJoy), Gravity.LEFT or Gravity.BOTTOM)
-                  lpJoy.setMargins(dp(24 * e), 0, 0, dp(28 * e))
+                  lpJoy.setMargins(dp(61 * e), 0, 0, dp(29 * e))
                   js.translationX = ajustes.dx(JOY_ID) * d
                   js.translationY = ajustes.dy(JOY_ID) * d
                   capa.addView(js, lpJoy)
