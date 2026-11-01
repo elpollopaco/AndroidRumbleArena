@@ -1,0 +1,1801 @@
+# Digimon World - APK con emulador de PS1 incluido (LibretroDroid + PCSX ReARMed)
+# Guarda este archivo en tu repositorio como: .github/workflows/build.yml
+# Luego: pestaña Actions > "Build Digimon World APK" > Run workflow.
+# El APK aparece en Releases (y como artefacto de la ejecución).
+name: Build Digimon World APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+env:
+  # ===================== CONFIGURACIÓN (todo fijo aquí) =====================
+  # Carpeta donde pones tu disco (sin comillas dobles dentro).
+  # Los nombres de archivo NO importan, pero deben ser copias exactas (se verifica el SHA-256):
+  #   Digimon World (USA):   .bin + .cue (los dos, en esta carpeta)
+  #   Digimon World (Japan): .iso
+  DISC_FOLDER: "/storage/emulated/0/Games"
+  # Versión de la app: 1.0, 1.1, 1.2, ... (cámbiala en cada actualización)
+  APP_VERSION: "1.0"
+  # =========================================================================
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Generar proyecto Android
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          mkdir -p p/app/src/main/java/org/elpollopaco/digimonworld p/app/src/main/jniLibs/arm64-v8a p/app/src/main/res/drawable
+          cd p
+
+          # Iconos de los botones (PNG incrustados en base64)
+          mkdir -p app/src/main/res/drawable-nodpi
+          base64 -d > app/src/main/res/drawable-nodpi/ic_salto.png <<'EOF'
+          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
+          RCKRSCT6H/QHlu8vEfurLIgAAAAASUVORK5CYII=
+          EOF
+          base64 -d > app/src/main/res/drawable-nodpi/ic_ataque.png <<'EOF'
+          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
+          5ZRv+QdpF02W4ST9MQAAAABJRU5ErkJggg==
+          EOF
+          base64 -d > app/src/main/res/drawable-nodpi/ic_especial1.png <<'EOF'
+          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
+          EOF
+          base64 -d > app/src/main/res/drawable-nodpi/ic_especial2.png <<'EOF'
+          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
+          TkSuQmCC
+          EOF
+          base64 -d > app/src/main/res/drawable-nodpi/ic_digievolucion.png <<'EOF'
+          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
+          rkJggg==
+          EOF
+          base64 -d > app/src/main/res/drawable-nodpi/ic_defensa.png <<'EOF'
+          iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAMAAABlApw1AAAAwFBMVEUAAAC5ubm5ubn///+6urq5
+          ubm5ubm5ubm5ubm5ubl/f3+qqqrHx8eamprW1tbBwcGvr69mZmYAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAD2KIB9AAAAMHRSTlMA4tUBEK8vbVCPAgYLBQclIAUAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAABA/1QrAAAKpklEQVR42u1diZKkKBC1OEWwZ/f/f3bBo8hEUEHQng1zYmKmu6q6eZLn
+          A5Kue+WVV1555ZVXXnnllb9LqJdhEZp8r31tkgeGmfXukWk2WmEjszIuf39oFLtDfAMiOmrjBmVm
+          Ge0fM33phmjY/O/0X8ZEnxCxvIlp+3E2RCay1fAHOyiZEKV4ICQl88tKTZ+zeBZxiBCStLqWPn4h
+          06OC8jmSGCCHaAHDND02uZLxq+OhXRAPZ0biNNG4v06YV08nRRNgJGkKAEP56lhEWR1Ak++AmLpp
+          /BEt29qRZPR3AzgEKFk2APmbAHx4n2vHpv9VAIgaMwGAGdh1ncvXJ7xs8KZMBErnZQZacLJnYDiK
+          zS7Eht2doFcyaqhDIgcANAES828+os6xaNfNsek9/TVAFkChEyL9mbRjyUtpXGJ4+hXMguQgwvM+
+          Kw3qGF8VN++TmYbG5qlR0WRqmqcKAETzrJcZEUtmHbgvggIAZAagTNcuc3eat5epeU3OBSA8AN21
+          Lz1AaefFfnNVhJOmCH7gGsYIkXcASPoSD0BmfVR7Lyr1g8U3AKCKvSh9bvxUFAPw1i8eBMBAQqYK
+          dU+x3wIgYyC00x5A9yAALTwAjhmNA/nqHnkUALABq8sZAHTvndCDAKAm5Bmj+R0AUFWSBWCUpCwA
+          NtShLAAeeCSVi6XIeuIdmfu+1jYrgNTusMe6LSl4+lEWAlDkuI6g2hG4xhhtVmZ0TvSnCofROGNN
+          B+3YK6aHU+QbDEgZRmx4EoBe2LIpjV9lSecjRaZj3FCu/P2UnAAv5HAyXflaMckCwJIAZsJXRSqQ
+          NfnDhfQ+8ftlfh3QKJ/PvD/PiagpALQTil8rzlPEHJeCRbmFL4AchtckbGDoMumuAwoFvmYT9y2E
+          0ftzleV+eSUAeWh5rysBMEkV6vmnKYKfJLsja8wA7QRvSyAiZ5/N7pwA0JgxxSw0LS7qkzagG5Pu
+          BP0+ei6i5sxAWw1yAOAU2GxUlVGLKTfatV40cL7Ux7P6AH7Up7EKWTOGABgvA5BSPXEKwIVAXQ2A
+          jBt/zz+t115lFQCgpMQAmptAAMDwsgWOVEnp42I7L5SYgTyK9kkALD4Div2FAGDcUVkLxeMhANIM
+          AFyOYCAZzQKQnIHPHTMQz6bHCgCMar6ejQGYUgBRZs7Vk+0B9KkZYGWBDAPgNwMwxQBidcRNAHSN
+          GTCxOgLUk6QhAOg0dPEMxOoBUI61AxDkcqVLdVEAQ/s4tgcgawb0EQByEwD1KVtrZDxSoz4KgJcC
+          UM8C+NYfeYulA2Ak2b0AsKoLACAnGYXei94JgATOxhdQedk0izKStwBABSAFTsgUApDdnW6U4BJc
+          g4QgL44dAWhWEmMAIKMReTv+ngMgMAC/TN9dB9B+NzIJMh5AqugsAEbGk9H2APAm76g3PzUDCwCC
+          k9E7ACBfA5yhyQKgVTQZ9Zt5myFAyTTwevInc7/W5xkA2AmNhdvGAkLvzoIML2+IQmJ0iFOqNwCA
+          qaMdh08keObxB8CHmVhN3y4X1XBxQxbWkx3tY4zkDSWxzXggL/pdjMjd+klRKU2/mtW6JLapHB08
+          gH9gLt2VpkJwBr4Hs5oRozDp18gEaCkAcFyweTaNyjGYycnM/eeATurHOwGAcgxuaiB9JoAfkAqh
+          GWi8RMn7Ifa4MsvJyfwfAYByaaqLNQjvsAAAdFsABIcxsO07c/c24sMg1crakuvB0oAfA88+zarj
+          AERrAGCzkNUgH8WyAQA3igDw1hqEV/eKGKF9AK01KLq6lxvFHpsBBWIOimJ/B4DAB4EoVnCMLQVA
+          kZt8ENzZZjVo+CsAqD7uRAs0KAGAtowD0y6VWMhxedAlFfLTN1B5mwaJSyaAANBbciGCfBBcTSxw
+          oifqgRYTAKKYBiagzLUZCCqyViUlXqCn0ARKDkLSw5KS1A8COsqJ8j8lZ5BY753beEdNHHbu6C85
+          UbQ6q24p6q0Jmy7mLYrOUEFm8XMLrUK4Ctc1yjNRvFUwAaBtKYMXV4cSAOAI6U/77UIkSCPoNRNw
+          AyWfKLXYaIlp2isa323Vs6KDkOgQL0BGZSMA0IQHnEcUHeQEACDT0WidGNeSOJUuBCDiABqdAAq2
+          yaE8okiDaBpAEysODv4kaLVSL8QT5lV1AvDBpcsmgI5RB+l4g1AWrL7AcMlLAYDSKwAg6h+A4P2I
+          AfiERZU1mNsDwKqfocFkhGvv6BOhrMVhTC3ClWck1YsyN0oaP6ZDSvKI2Q+kAfTV87jwBOtlE8Cr
+          Ux98BJPWJrc2ek5RFCicAZQM4TXw2o40MGFEqMjSzkwon8bkfO1YFsZamAjx4rY6FB50CHmZuhmp
+          e8r4V4N9isUmQKEVf+TQ0IyDFWzU4VGarlhGmI8GzQRqTkGo5nBP1aWWIpAGJYGZ0XpTsPGhGhIq
+          4kpTF0+sbA5w0XpTsPGhGm4yu9beDjjSzVzWqgq2QYzW600GHOl2CirFgs0YQdVNgt1z+QCAH9qk
+          5XVWOlyzFBqWUmugv2gCuCr7qDHoxVNFibaciYsCAMBwCQAMBZvprNHO1lrppn0Pk3B1+1pnKQqn
+          IIwFFcxga8HTbnVAil4cP5qCz2a1/yoC+/xNRG/59TwitmszFhYvIXBU0BAZYV8lj1jlX4mTluEE
+          guTKB9njEiO0fn+9txrF22tU0GdvyrtIYpz7zZkdkxVpdlSBUAl+IM56tpte2G57+WRjpGlbDY0l
+          YPK7fqKqAMDnnyOOjZUUmAGTiGqZwnOH6awalV828odxx91RQLLHH09y6HCd1N38TI2UaPNcKGWs
+          z4OAV8O6BCd6OYoltsnFzkLNEM40XFnc53hcRFkfVKlNbljDb4kC+9WPEWcxWPVnJ5ZGa2kQPs+U
+          si73q0bWy7kHedolca76dEM/6PIqatA2XqX8g5kaEqpoC/LlnhDGfnY9XnUTXvKrYJfQXqmnpyt1
+          psaKS4v7qaOi+Ge9cmbnuiM8ARVlQ2Ul7BD0thy19jewaL2cadi7rglRltV7vesg+U9FolmVow0R
+          D7skwusmpK7dYnaTtvG+6iTbJAIoUF0LWJOUSDVYTyAh2qRTOtWbXdOkRr4eicG1XdDXDKIIhipP
+          xz0eSEKZroWwDQJeZw4oImlI6bpeCYJpoye9PHzTQ5Kp3XUZw7BFoAQbLiBw3ZyNgEWRo+OGVghc
+          7h9L7d0dGkWqP9UbElVEhXsjyr2pDwjZd21Nt9Hg4V8mpI8fmtgQEbY+mRsury2+Dy+fo3NbcCZk
+          mILbENb6sozBRKgUMl9JxwL91npqYQ7ur3TfootH6OUm907WmjXnILXKShwK2X9beesdb2bfpCJc
+          QGv9OUdMz3frqQVMv17fOHU6n/qXS5Woeu4av8u7+BFtCCoZpUB79jTb5ai64a5rDlj28sZhvRzs
+          nG4Poe7WuXDba3st6tgfyQ8IlPOzY7VH331zrvVGYgcCOatYznkV3JlZS48ur/QRd+tA95BQysQV
+          CNOzZwVZSGUIE50VKhA5oTlSuGin9ZNXxKx0loOxskBqy2sF8YHz6UZF9uSz3+ZIc6h1t4F8L3r8
+          XhayXi8yB2j7iilKYJvpkc3Rok5wZukYWwH98TcND1oPv+fpf/ms4NL0pAf+ZUM/j6175ZVXXnnl
+          lVf+h/If8GqHatlb+0gAAAAASUVORK5CYII=
+          EOF
+
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  maven("https://jitpack.io")
+              }
+          }
+          rootProject.name = "DigimonWorld"
+          include(":app")
+          EOF
+
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          android.useAndroidX=true
+          org.gradle.jvmargs=-Xmx2g
+          EOF
+
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "org.elpollopaco.digimonworld"
+              compileSdk = 34
+              defaultConfig {
+                  applicationId = "org.elpollopaco.digimonworld"
+                  minSdk = 26
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+                  ndk { abiFilters += "arm64-v8a" }
+              }
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions { jvmTarget = "17" }
+              packaging { jniLibs { useLegacyPackaging = true } }
+          }
+
+          dependencies {
+              implementation("androidx.appcompat:appcompat:1.7.0")
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+              implementation("com.github.Swordfish90:LibretroDroid:0.13.2")
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+              <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+              <application
+                  android:label="Digimon World"
+                  android:icon="@android:drawable/sym_def_app_icon"
+                  android:theme="@style/Theme.AppCompat.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:screenOrientation="sensorLandscape"
+                      android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation|uiMode">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/res/drawable/ic_github.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+          </vector>
+          EOF
+
+          cat > app/src/main/java/org/elpollopaco/digimonworld/MainActivity.kt <<'EOF'
+          package org.elpollopaco.digimonworld
+
+          import android.Manifest
+          import android.content.Context
+          import android.content.Intent
+          import android.content.pm.PackageManager
+          import android.graphics.Bitmap
+          import android.graphics.BitmapFactory
+          import android.graphics.Canvas
+          import android.graphics.Color
+          import android.graphics.Paint
+          import android.graphics.RectF
+          import android.graphics.Typeface
+          import android.graphics.drawable.GradientDrawable
+          import android.media.AudioManager
+          import android.net.Uri
+          import android.os.Build
+          import android.os.Bundle
+          import android.os.Environment
+          import android.os.Process
+          import android.provider.Settings
+          import android.view.Gravity
+          import android.view.HapticFeedbackConstants
+          import android.view.InputDevice
+          import android.view.KeyEvent
+          import android.view.MotionEvent
+          import android.view.View
+          import android.view.ViewGroup
+          import android.view.WindowManager
+          import android.widget.Button
+          import android.widget.FrameLayout
+          import android.widget.ImageView
+          import android.widget.LinearLayout
+          import android.widget.RadioButton
+          import android.widget.RadioGroup
+          import android.widget.ScrollView
+          import android.widget.SeekBar
+          import android.widget.TextView
+          import android.widget.Toast
+          import androidx.appcompat.app.AlertDialog
+          import androidx.appcompat.app.AppCompatActivity
+          import androidx.core.view.WindowCompat
+          import androidx.core.view.WindowInsetsCompat
+          import androidx.core.view.WindowInsetsControllerCompat
+          import com.swordfish.libretrodroid.GLRetroView
+          import com.swordfish.libretrodroid.GLRetroViewData
+          import com.swordfish.libretrodroid.Variable
+          import kotlinx.coroutines.runBlocking
+          import java.io.File
+          import java.io.FileInputStream
+          import java.security.MessageDigest
+          import java.util.concurrent.Executors
+          import kotlin.math.abs
+          import kotlin.math.hypot
+
+          // El valor lo pone el workflow desde DISC_FOLDER (arriba en build.yml).
+          const val DISC_FOLDER = "__DISC_FOLDER__"
+
+          // SHA-256 de los discos permitidos (los nombres de archivo no importan)
+          const val HASH_USA_BIN = "06084490ea0db34099b31495ccba4ec18fb0ff25c7683c508e9d2db93d4495f4"
+          const val HASH_USA_CUE = "82b297b9b499fea9c7f361a497b933b7f971394148212eca03e4798ddc0c98d1"
+          const val HASH_JP_ISO = "b5ff9ed251bced70c20eb911eab8ac3e5b77d7a140983d3b5dc31decac4837af"
+          const val CORE_LIB = "libpcsx_rearmed_libretro_android.so"
+
+          // Valores predeterminados de los ajustes
+          const val RES_DEFECTO = 1   // 1x
+          const val TAM_DEFECTO = 100 // % tamaño de controles
+          const val OPA_DEFECTO = 30  // % opacidad de controles
+          const val IDIOMA_DEFECTO = "en" // "en" = inglés, "es" = español
+          const val JOY_ID = 1000 // clave donde se guarda la posición del joystick
+
+          class Ajustes(ctx: Context) {
+              private val p = ctx.getSharedPreferences("ajustes", Context.MODE_PRIVATE)
+
+              var resolucion: Int
+                  get() = p.getInt("res", RES_DEFECTO)
+                  set(v) { p.edit().putInt("res", v).apply() }
+
+              var tamano: Int
+                  get() = p.getInt("tam", TAM_DEFECTO)
+                  set(v) { p.edit().putInt("tam", v).apply() }
+
+              var opacidad: Int
+                  get() = p.getInt("opa", OPA_DEFECTO)
+                  set(v) { p.edit().putInt("opa", v).apply() }
+
+              var idioma: String
+                  get() = p.getString("idioma", IDIOMA_DEFECTO) ?: IDIOMA_DEFECTO
+                  set(v) { p.edit().putString("idioma", v).apply() }
+
+              var modoGamepad: Boolean
+                  get() = p.getBoolean("gamepad", false)
+                  set(v) { p.edit().putBoolean("gamepad", v).apply() }
+
+              fun dx(id: Int): Int = p.getInt("dx" + id, 0)
+              fun dy(id: Int): Int = p.getInt("dy" + id, 0)
+              fun mover(id: Int, dx: Int, dy: Int) {
+                  p.edit().putInt("dx" + id, dx).putInt("dy" + id, dy).apply()
+              }
+
+              // Restablece resolución y controles. El idioma y el modo gamepad se conservan.
+              fun restablecer() {
+                  val actual = idioma
+                  val gp = modoGamepad
+                  p.edit().clear().putString("idioma", actual).putBoolean("gamepad", gp).apply()
+              }
+          }
+
+          class PadButton(
+              context: Context,
+              private val label: String,
+              val keyCode: Int,
+              private val ajustes: Ajustes,
+              private val send: (Int, Int) -> Unit,
+              private val round: Boolean,
+              private val hit: Float,
+              private val iconRes: Int = 0
+          ) : View(context) {
+              var editMode = false
+              // Icono opcional: si existe se dibuja en lugar del texto
+              private val icono: Bitmap? =
+                  if (iconRes != 0) BitmapFactory.decodeResource(context.resources, iconRes) else null
+              private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+              private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+              private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                  color = Color.WHITE
+                  textAlign = Paint.Align.CENTER
+              }
+              private val borde = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                  color = Color.YELLOW
+                  style = Paint.Style.STROKE
+                  strokeWidth = 4f
+              }
+              private var down = false
+              private var ox = 0f
+              private var oy = 0f
+              private var tx0 = 0f
+              private var ty0 = 0f
+
+              // Pulsa o suelta el botón (lo llama la capa de controles)
+              fun presionar(estado: Boolean) {
+                  if (down == estado) return
+                  down = estado
+                  send(if (estado) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP, keyCode)
+                  invalidate()
+              }
+
+              // ¿El punto (x, y), en coordenadas de la capa, cae sobre este botón?
+              fun contiene(x: Float, y: Float): Boolean {
+                  val cx = left + translationX + width / 2f
+                  val cy = top + translationY + height / 2f
+                  if (round) {
+                      val r = minOf(width, height) / 2f * hit
+                      val dx = x - cx
+                      val dy = y - cy
+                      return dx * dx + dy * dy <= r * r
+                  }
+                  return abs(x - cx) <= width / 2f && abs(y - cy) <= height / 2f
+              }
+
+              override fun onDraw(c: Canvas) {
+                  val base = ajustes.opacidad * 255 / 100
+                  fill.alpha = if (down) minOf(255, base + 100) else base
+                  text.alpha = minOf(255, base + 120)
+                  text.textSize = 18f * resources.displayMetrics.density * ajustes.tamano / 100f
+                  val w = width.toFloat()
+                  val h = height.toFloat()
+                  if (round) {
+                      c.drawCircle(w / 2, h / 2, minOf(w, h) / 2 - 3f, fill)
+                      if (editMode) c.drawCircle(w / 2, h / 2, minOf(w, h) / 2 - 3f, borde)
+                  } else {
+                      c.drawRoundRect(3f, 3f, w - 3f, h - 3f, h / 2, h / 2, fill)
+                      if (editMode) c.drawRoundRect(3f, 3f, w - 3f, h - 3f, h / 2, h / 2, borde)
+                  }
+                  if (icono != null) {
+                      val lado = minOf(w, h) * (if (round) 0.8f else 0.92f)
+                      val dst = RectF(w / 2 - lado / 2, h / 2 - lado / 2, w / 2 + lado / 2, h / 2 + lado / 2)
+                      iconPaint.alpha = if (down) 255 else minOf(255, base + 120)
+                      c.drawBitmap(icono, null, dst, iconPaint)
+                  } else {
+                      c.drawText(label, w / 2, h / 2 - (text.ascent() + text.descent()) / 2, text)
+                  }
+              }
+
+              // Solo se usa en modo edición (arrastrar). En juego los toques los gestiona CapaControles.
+              override fun onTouchEvent(e: MotionEvent): Boolean {
+                  if (!editMode) return false
+                  when (e.actionMasked) {
+                      MotionEvent.ACTION_DOWN -> {
+                          ox = e.rawX
+                          oy = e.rawY
+                          tx0 = translationX
+                          ty0 = translationY
+                      }
+                      MotionEvent.ACTION_MOVE -> {
+                          var nx = tx0 + (e.rawX - ox)
+                          var ny = ty0 + (e.rawY - oy)
+                          val pv = parent as? View
+                          if (pv != null) {
+                              nx = nx.coerceIn(-left.toFloat(), (pv.width - width - left).toFloat())
+                              ny = ny.coerceIn(-top.toFloat(), (pv.height - height - top).toFloat())
+                          }
+                          translationX = nx
+                          translationY = ny
+                      }
+                      MotionEvent.ACTION_UP -> {
+                          val d = resources.displayMetrics.density
+                          ajustes.mover(keyCode, (translationX / d).toInt(), (translationY / d).toInt())
+                      }
+                  }
+                  return true
+              }
+          }
+
+          // Joystick virtual: reemplaza la cruceta. Al moverlo pulsa las flechas del pad
+          // (arriba, abajo, izquierda, derecha); en diagonal pulsa dos a la vez.
+          class Joystick(
+              context: Context,
+              private val clave: Int,
+              private val ajustes: Ajustes,
+              private val send: (Int, Int) -> Unit
+          ) : View(context) {
+              var editMode = false
+              private val fondo = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+              private val aro = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                  color = Color.WHITE
+                  style = Paint.Style.STROKE
+                  strokeWidth = 3f
+              }
+              private val palo = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+              private val borde = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                  color = Color.YELLOW
+                  style = Paint.Style.STROKE
+                  strokeWidth = 4f
+              }
+              private var px = 0f // desplazamiento del palo respecto al centro
+              private var py = 0f
+              private var arriba = false
+              private var abajo = false
+              private var izq = false
+              private var der = false
+              private var ox = 0f
+              private var oy = 0f
+              private var tx0 = 0f
+              private var ty0 = 0f
+
+              private fun centroX(): Float = left + translationX + width / 2f
+              private fun centroY(): Float = top + translationY + height / 2f
+
+              // ¿El punto (x, y), en coordenadas de la capa, cae sobre el joystick?
+              fun contiene(x: Float, y: Float): Boolean {
+                  val r = minOf(width, height) / 2f * 1.2f
+                  val dx = x - centroX()
+                  val dy = y - centroY()
+                  return dx * dx + dy * dy <= r * r
+              }
+
+              // Mueve el palo hacia el punto (x, y) y pulsa las flechas que correspondan
+              fun mover(x: Float, y: Float) {
+                  val radio = minOf(width, height) / 2f
+                  var dx = x - centroX()
+                  var dy = y - centroY()
+                  val dist = hypot(dx, dy)
+                  val maximo = radio * 0.6f
+                  if (dist > maximo) {
+                      dx = dx * maximo / dist
+                      dy = dy * maximo / dist
+                  }
+                  px = dx
+                  py = dy
+                  val umbral = radio * 0.22f
+                  aplicar(dy < -umbral, dy > umbral, dx < -umbral, dx > umbral)
+                  invalidate()
+              }
+
+              // Suelta el palo: vuelve al centro y suelta todas las flechas
+              fun soltar() {
+                  px = 0f
+                  py = 0f
+                  aplicar(false, false, false, false)
+                  invalidate()
+              }
+
+              private fun aplicar(u: Boolean, d: Boolean, l: Boolean, r: Boolean) {
+                  if (u != arriba) {
+                      arriba = u
+                      send(if (u) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_UP)
+                  }
+                  if (d != abajo) {
+                      abajo = d
+                      send(if (d) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_DOWN)
+                  }
+                  if (l != izq) {
+                      izq = l
+                      send(if (l) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_LEFT)
+                  }
+                  if (r != der) {
+                      der = r
+                      send(if (r) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_RIGHT)
+                  }
+              }
+
+              override fun onDraw(c: Canvas) {
+                  val a = ajustes.opacidad * 255 / 100
+                  val cx = width / 2f
+                  val cy = height / 2f
+                  val radio = minOf(width, height) / 2f
+                  fondo.alpha = a * 2 / 3
+                  aro.alpha = minOf(255, a + 90)
+                  palo.alpha = minOf(255, a + 110 + (if (px != 0f || py != 0f) 40 else 0))
+                  c.drawCircle(cx, cy, radio - 3f, fondo)
+                  c.drawCircle(cx, cy, radio - 3f, aro)
+                  c.drawCircle(cx + px, cy + py, radio * 0.38f, palo)
+                  if (editMode) c.drawCircle(cx, cy, radio - 3f, borde)
+              }
+
+              // Solo se usa en modo edición (arrastrar). En juego los toques los gestiona CapaControles.
+              override fun onTouchEvent(e: MotionEvent): Boolean {
+                  if (!editMode) return false
+                  when (e.actionMasked) {
+                      MotionEvent.ACTION_DOWN -> {
+                          ox = e.rawX
+                          oy = e.rawY
+                          tx0 = translationX
+                          ty0 = translationY
+                      }
+                      MotionEvent.ACTION_MOVE -> {
+                          var nx = tx0 + (e.rawX - ox)
+                          var ny = ty0 + (e.rawY - oy)
+                          val pv = parent as? View
+                          if (pv != null) {
+                              nx = nx.coerceIn(-left.toFloat(), (pv.width - width - left).toFloat())
+                              ny = ny.coerceIn(-top.toFloat(), (pv.height - height - top).toFloat())
+                          }
+                          translationX = nx
+                          translationY = ny
+                      }
+                      MotionEvent.ACTION_UP -> {
+                          val d = resources.displayMetrics.density
+                          ajustes.mover(clave, (translationX / d).toInt(), (translationY / d).toInt())
+                      }
+                  }
+                  return true
+              }
+          }
+          // Capa que sigue cada dedo: al deslizar de un botón a otro suelta el anterior y pulsa el nuevo.
+          // Un mismo dedo puede pulsar dos botones a la vez si toca donde se solapan (diagonales).
+          class CapaControles(context: Context) : FrameLayout(context) {
+              var joystick: Joystick? = null
+              private var punteroJoystick = -1
+              var edicion: Boolean = false
+                  set(v) {
+                      if (v) soltarTodos()
+                      field = v
+                  }
+              private val punteros = HashMap<Int, Set<PadButton>>()
+              private val conteo = HashMap<PadButton, Int>()
+
+              override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+                  if (edicion) return super.dispatchTouchEvent(ev)
+                  when (ev.actionMasked) {
+                      MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                          val i = ev.actionIndex
+                          tocar(ev.getPointerId(i), ev.getX(i), ev.getY(i), true)
+                      }
+                      MotionEvent.ACTION_MOVE -> {
+                          for (i in 0 until ev.pointerCount) {
+                              tocar(ev.getPointerId(i), ev.getX(i), ev.getY(i), false)
+                          }
+                      }
+                      MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                          soltarPuntero(ev.getPointerId(ev.actionIndex))
+                      }
+                      MotionEvent.ACTION_CANCEL -> soltarTodos()
+                  }
+                  return true
+              }
+
+              // Un dedo que empieza sobre el joystick lo controla hasta que se suelta; el resto va a los botones.
+              private fun tocar(id: Int, x: Float, y: Float, inicio: Boolean) {
+                  val j = joystick
+                  if (j != null) {
+                      if (id == punteroJoystick) {
+                          j.mover(x, y)
+                          return
+                      }
+                      if (inicio && punteroJoystick == -1 && j.contiene(x, y)) {
+                          punteroJoystick = id
+                          performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                          j.mover(x, y)
+                          return
+                      }
+                  }
+                  actualizar(id, x, y, inicio)
+              }
+
+              private fun soltarPuntero(id: Int) {
+                  if (id == punteroJoystick) {
+                      punteroJoystick = -1
+                      joystick?.soltar()
+                  } else {
+                      soltar(id)
+                  }
+              }
+              private fun actualizar(id: Int, x: Float, y: Float, tactil: Boolean) {
+                  val nuevos = HashSet<PadButton>()
+                  for (i in 0 until childCount) {
+                      val b = getChildAt(i) as? PadButton ?: continue
+                      if (b.contiene(x, y)) nuevos.add(b)
+                  }
+                  val antes: Set<PadButton> = punteros[id] ?: emptySet()
+                  for (b in antes) {
+                      if (b !in nuevos) quitar(b)
+                  }
+                  for (b in nuevos) {
+                      if (b !in antes) poner(b, tactil)
+                  }
+                  punteros[id] = nuevos
+              }
+
+              private fun poner(b: PadButton, haptico: Boolean) {
+                  val n = (conteo[b] ?: 0) + 1
+                  conteo[b] = n
+                  if (n == 1) {
+                      if (haptico) performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                      b.presionar(true)
+                  }
+              }
+
+              private fun quitar(b: PadButton) {
+                  val n = (conteo[b] ?: 1) - 1
+                  if (n <= 0) {
+                      conteo.remove(b)
+                      b.presionar(false)
+                  } else {
+                      conteo[b] = n
+                  }
+              }
+
+              private fun soltar(id: Int) {
+                  val antes = punteros.remove(id) ?: return
+                  for (b in antes) quitar(b)
+              }
+
+              fun soltarTodos() {
+                  for (b in conteo.keys.toList()) b.presionar(false)
+                  conteo.clear()
+                  punteros.clear()
+                  punteroJoystick = -1
+                  joystick?.soltar()
+              }
+          }
+
+          private class Def(
+              val label: String, val key: Int, val w: Int, val h: Int, val g: Int,
+              val l: Int, val t: Int, val r: Int, val b: Int, val round: Boolean, val hit: Float, val icon: Int = 0
+          )
+
+          // Posición predeterminada de cada botón (en dp, a 100 % de tamaño).
+          // La cruceta fue reemplazada por el Joystick (clase Joystick, más arriba).
+          private fun definiciones(): List<Def> {
+              val ia = Gravity.LEFT or Gravity.BOTTOM
+              val da = Gravity.RIGHT or Gravity.BOTTOM
+              val iar = Gravity.LEFT or Gravity.TOP
+              val dar = Gravity.RIGHT or Gravity.TOP
+              val ca = Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM
+              return listOf(
+                  // Acción (por posición: A=abajo=Cruz, B=derecha=Círculo)
+                  Def("△", KeyEvent.KEYCODE_BUTTON_Y, 56, 56, da, 0, 0, 62, 138, true, 1f, R.drawable.ic_especial2),
+                  Def("✕", KeyEvent.KEYCODE_BUTTON_A, 56, 56, da, 0, 0, 62, 26, true, 1f, R.drawable.ic_salto),
+                  Def("□", KeyEvent.KEYCODE_BUTTON_X, 56, 56, da, 0, 0, 118, 82, true, 1f, R.drawable.ic_ataque),
+                  Def("○", KeyEvent.KEYCODE_BUTTON_B, 56, 56, da, 0, 0, 6, 82, true, 1f, R.drawable.ic_especial1),
+                  // Gatillos
+                  Def("L2", KeyEvent.KEYCODE_BUTTON_L2, 64, 40, iar, 16, 16, 0, 0, false, 1f, R.drawable.ic_digievolucion),
+                  Def("L1", KeyEvent.KEYCODE_BUTTON_L1, 64, 40, iar, 16, 64, 0, 0, false, 1f, R.drawable.ic_defensa),
+                  Def("R2", KeyEvent.KEYCODE_BUTTON_R2, 64, 40, dar, 0, 16, 16, 0, false, 1f),
+                  Def("R1", KeyEvent.KEYCODE_BUTTON_R1, 64, 40, dar, 0, 64, 16, 0, false, 1f),
+                  // Select / Start
+                  Def("SELECT", KeyEvent.KEYCODE_BUTTON_SELECT, 84, 34, ca, -100, 0, 0, 14, false, 1f),
+                  Def("START", KeyEvent.KEYCODE_BUTTON_START, 84, 34, ca, 100, 0, 0, 14, false, 1f)
+              )
+          }
+
+          class Disco(val ruta: String, val nombre: String)
+
+          // disco != null -> hay un disco válido. binOk/cueOk indican si se encontró cada archivo válido.
+          class Resultado(val disco: Disco?, val carpetaOk: Boolean, val binOk: Boolean, val cueOk: Boolean)
+
+          class MainActivity : AppCompatActivity() {
+              private lateinit var root: FrameLayout
+              private lateinit var ajustes: Ajustes
+              private var retroView: GLRetroView? = null
+              private var inicio: View? = null
+              private var capaControles: CapaControles? = null
+              private var joystick: Joystick? = null
+              private var engranaje: View? = null
+              private var panel: View? = null
+              private var barraEdicion: View? = null
+              private val botones = mutableListOf<PadButton>()
+              private var enviar: (Int, Int) -> Unit = { _, _ -> }
+              private var enEdicion = false
+              private var resInicial = RES_DEFECTO
+              private val sramFile by lazy { File(filesDir, "saves/memcard.srm") }
+              private var discoListo: Disco? = null
+              private var idEscaneo = 0
+              private var cargando = false
+              private var startDown = false
+              private var selectDown = false
+              private var comboUsado = false
+              private val ejecutor = Executors.newSingleThreadExecutor()
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                  WindowCompat.setDecorFitsSystemWindows(window, false)
+                  ajustes = Ajustes(this)
+                  volumeControlStream = AudioManager.STREAM_MUSIC
+                  root = FrameLayout(this)
+                  root.setBackgroundColor(Color.BLACK)
+                  setContentView(root)
+              }
+
+              override fun onResume() {
+                  super.onResume()
+                  WindowInsetsControllerCompat(window, window.decorView).apply {
+                      hide(WindowInsetsCompat.Type.systemBars())
+                      systemBarsBehavior =
+                          WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                  }
+                  if (retroView != null || panel != null || enEdicion || cargando) return
+                  if (intent.getBooleanExtra("autostart", false) && tieneAcceso()) {
+                      intent.removeExtra("autostart")
+                      cargando = true
+                      ejecutor.execute {
+                          val r = escanear { }
+                          runOnUiThread {
+                              cargando = false
+                              if (isFinishing) return@runOnUiThread
+                              discoListo = r.disco
+                              if (r.disco != null) iniciarJuego() else mostrarInicio()
+                          }
+                      }
+                  } else {
+                      mostrarInicio()
+                  }
+              }
+
+              override fun onPause() {
+                  startDown = false
+                  selectDown = false
+                  comboUsado = false
+                  capaControles?.soltarTodos()
+                  guardarMemoryCard()
+                  super.onPause()
+              }
+
+              override fun onDestroy() {
+                  super.onDestroy()
+                  // El núcleo no se puede cargar dos veces en el mismo proceso: lo cerramos del todo
+                  if (retroView != null) Process.killProcess(Process.myPid())
+              }
+
+              @Suppress("DEPRECATION")
+              override fun onBackPressed() {
+                  when {
+                      enEdicion -> salirEdicion()
+                      panel != null -> cerrarAjustes()
+                      else -> super.onBackPressed()
+                  }
+              }
+
+              // ---------- Utilidades ----------
+              private fun dp(v: Number): Int = (v.toFloat() * resources.displayMetrics.density).toInt()
+
+              // Texto según el idioma elegido: tr(inglés, español)
+              private fun tr(en: String, es: String): String = if (ajustes.idioma == "es") es else en
+
+              private fun versionApp(): String {
+                  return try {
+                      packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
+                  } catch (e: Exception) {
+                      "?"
+                  }
+              }
+
+              private fun texto(t: String, sp: Float = 16f, negrita: Boolean = false, color: Int = Color.WHITE): TextView {
+                  val tv = TextView(this)
+                  tv.text = t
+                  tv.textSize = sp
+                  tv.setTextColor(color)
+                  tv.gravity = Gravity.CENTER
+                  tv.setPadding(0, dp(6), 0, dp(6))
+                  if (negrita) tv.setTypeface(null, Typeface.BOLD)
+                  return tv
+              }
+
+              private fun boton(t: String, accion: () -> Unit): Button {
+                  val b = Button(this)
+                  b.text = t
+                  b.isAllCaps = false
+                  b.setOnClickListener { accion() }
+                  b.layoutParams = LinearLayout.LayoutParams(dp(260), ViewGroup.LayoutParams.WRAP_CONTENT)
+                  return b
+              }
+
+              private fun cambio(f: (Int) -> Unit) = object : SeekBar.OnSeekBarChangeListener {
+                  override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {
+                      if (fromUser) f(p)
+                  }
+                  override fun onStartTrackingTouch(s: SeekBar?) {}
+                  override fun onStopTrackingTouch(s: SeekBar?) {}
+              }
+
+              private fun traerAlFrente() {
+                  engranaje?.bringToFront()
+                  panel?.bringToFront()
+                  barraEdicion?.bringToFront()
+              }
+
+              // ---------- Permisos y disco ----------
+              private fun tieneAcceso(): Boolean =
+                  if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager()
+                  else checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) ==
+                      PackageManager.PERMISSION_GRANTED
+
+              private fun pedirAcceso() {
+                  if (Build.VERSION.SDK_INT >= 30) {
+                      startActivity(
+                          Intent(
+                              Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                              Uri.parse("package:" + packageName)
+                          )
+                      )
+                  } else {
+                      requestPermissions(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE), 1)
+                  }
+              }
+
+              // ---------- Verificación del disco (SHA-256) ----------
+              private fun sha256(f: File, avance: (String) -> Unit): String {
+                  val prefs = getSharedPreferences("hashes", Context.MODE_PRIVATE)
+                  val clave = "h:" + f.absolutePath + "|" + f.length() + "|" + f.lastModified()
+                  val guardado = prefs.getString(clave, null)
+                  if (guardado != null) return guardado
+                  val md = MessageDigest.getInstance("SHA-256")
+                  val total = f.length()
+                  var leidos = 0L
+                  var ultimo = -1
+                  val buf = ByteArray(1 shl 20)
+                  FileInputStream(f).use { ins ->
+                      while (true) {
+                          val n = ins.read(buf)
+                          if (n < 0) break
+                          md.update(buf, 0, n)
+                          leidos += n
+                          if (total > 1000000L) {
+                              val p = (leidos * 100 / total).toInt()
+                              if (p != ultimo) {
+                                  ultimo = p
+                                  avance(tr("Verifying ", "Verificando ") + f.name + "  " + p + "%")
+                              }
+                          }
+                      }
+                  }
+                  val hex = md.digest().joinToString("") { "%02x".format(it) }
+                  prefs.edit().putString(clave, hex).apply()
+                  return hex
+              }
+
+              // Si el .cue apunta a otro nombre de .bin, crea un .cue temporal junto al .bin con el nombre real
+              private fun prepararCue(cue: File, bin: File): String? {
+                  return try {
+                      val contenido = cue.readText(Charsets.ISO_8859_1)
+                      val re = Regex("(?i)(FILE\\s+)(\"[^\"]*\"|\\S+)(\\s+BINARY)")
+                      val m = re.find(contenido) ?: return cue.absolutePath
+                      val ref = m.groupValues[2].trim('"')
+                      if (ref == bin.name) return cue.absolutePath
+                      val nuevo = contenido.replaceFirst(
+                          re,
+                          Regex.escapeReplacement(m.groupValues[1] + "\"" + bin.name + "\"" + m.groupValues[3])
+                      )
+                      val tmp = File(bin.parentFile, ".digimon_runtime.cue")
+                      tmp.writeText(nuevo, Charsets.ISO_8859_1)
+                      tmp.absolutePath
+                  } catch (e: Exception) {
+                      null
+                  }
+              }
+
+              // Busca en la carpeta un disco válido, sin importar los nombres de archivo
+              private fun escanear(avance: (String) -> Unit): Resultado {
+                  val carpeta = File(DISC_FOLDER)
+                  try {
+                      val todos = carpeta.listFiles()
+                      if (!carpeta.isDirectory || todos == null) return Resultado(null, false, false, false)
+                      val archivos = todos.filter { it.isFile }.sortedBy { it.name.lowercase() }
+                      val cues = archivos.filter { it.extension.lowercase() == "cue" }
+                      val isos = archivos.filter { it.extension.lowercase() == "iso" }
+                      val bins = archivos.filter { it.extension.lowercase() == "bin" }
+
+                      var cueValido: File? = null
+                      for (f in cues) {
+                          if (sha256(f, avance) == HASH_USA_CUE) {
+                              cueValido = f
+                              break
+                          }
+                      }
+                      for (f in isos) {
+                          if (sha256(f, avance) == HASH_JP_ISO) {
+                              return Resultado(
+                                  Disco(f.absolutePath, "Digimon World (Japan) - " + f.name),
+                                  true, false, cueValido != null
+                              )
+                          }
+                      }
+                      var binValido: File? = null
+                      for (f in bins) {
+                          if (sha256(f, avance) == HASH_USA_BIN) {
+                              binValido = f
+                              break
+                          }
+                      }
+                      if (binValido != null && cueValido != null) {
+                          val ruta = prepararCue(cueValido, binValido)
+                          if (ruta != null) {
+                              return Resultado(
+                                  Disco(ruta, "Digimon World (USA) - " + binValido.name),
+                                  true, true, true
+                              )
+                          }
+                      }
+                      return Resultado(null, true, binValido != null, cueValido != null)
+                  } catch (e: Exception) {
+                      return Resultado(null, carpeta.isDirectory, false, false)
+                  }
+              }
+
+              // ---------- Pantalla de inicio ----------
+              private fun mostrarInicio() {
+                  inicio?.let { root.removeView(it) }
+                  val contenedor = FrameLayout(this)
+                  contenedor.setBackgroundColor(Color.BLACK)
+
+                  val scroll = ScrollView(this)
+                  scroll.isFillViewport = true
+                  val col = LinearLayout(this)
+                  col.orientation = LinearLayout.VERTICAL
+                  col.gravity = Gravity.CENTER
+                  col.setPadding(dp(32), dp(16), dp(32), dp(16))
+                  scroll.addView(
+                      col,
+                      FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          ViewGroup.LayoutParams.WRAP_CONTENT
+                      )
+                  )
+
+                  col.addView(texto("Digimon World", 28f, true))
+                  val zona = LinearLayout(this)
+                  zona.orientation = LinearLayout.VERTICAL
+                  zona.gravity = Gravity.CENTER
+                  col.addView(zona)
+                  if (!tieneAcceso()) {
+                      zona.addView(
+                          texto(
+                              tr(
+                                  "All files access permission is needed to read your disc.",
+                                  "Falta el permiso de acceso a todos los archivos para leer tu disco."
+                              )
+                          )
+                      )
+                      zona.addView(boton(tr("Grant permission", "Dar permiso")) { pedirAcceso() })
+                  } else {
+                      verificarDisco(zona)
+                  }
+                  col.addView(boton(tr("⚙  Settings", "⚙  Ajustes")) { mostrarAjustes() })
+                  val btnGamepad = boton(textoGamepad()) { }
+                  btnGamepad.setOnClickListener {
+                      ajustes.modoGamepad = !ajustes.modoGamepad
+                      btnGamepad.text = textoGamepad()
+                  }
+                  col.addView(btnGamepad)
+                  contenedor.addView(
+                      scroll,
+                      FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          ViewGroup.LayoutParams.MATCH_PARENT
+                      )
+                  )
+
+                  // Idioma: abajo a la izquierda
+                  val nombreIdioma = if (ajustes.idioma == "es") "Español" else "English"
+                  val btnIdioma = boton("🌐 " + tr("Language", "Idioma") + ": " + nombreIdioma) { elegirIdioma() }
+                  val lpIdioma = FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT,
+                      ViewGroup.LayoutParams.WRAP_CONTENT,
+                      Gravity.LEFT or Gravity.BOTTOM
+                  )
+                  lpIdioma.setMargins(dp(12), 0, 0, dp(12))
+                  btnIdioma.layoutParams = lpIdioma
+                  contenedor.addView(btnIdioma)
+
+                  // Versión: abajo a la derecha
+                  val ver = texto(tr("Version ", "Versión ") + versionApp(), 13f, false, Color.GRAY)
+                  val lpVer = FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT,
+                      ViewGroup.LayoutParams.WRAP_CONTENT,
+                      Gravity.RIGHT or Gravity.BOTTOM
+                  )
+                  lpVer.setMargins(0, 0, dp(16), dp(16))
+                  contenedor.addView(ver, lpVer)
+
+                  // Créditos: arriba a la derecha, pequeños y semitransparentes
+                  val creditos = texto(
+                      tr("Port created by elpollopaco", "Port creado por elpollopaco"),
+                      12f, false, Color.WHITE
+                  )
+                  creditos.alpha = 0.45f
+                  val lpCred = FrameLayout.LayoutParams(
+                      ViewGroup.LayoutParams.WRAP_CONTENT,
+                      ViewGroup.LayoutParams.WRAP_CONTENT,
+                      Gravity.RIGHT or Gravity.TOP
+                  )
+                  lpCred.setMargins(0, dp(10), dp(14), 0)
+                  contenedor.addView(creditos, lpCred)
+
+                  // GitHub: icono, justo encima del botón de idioma
+                  val gh = ImageView(this)
+                  gh.setImageResource(R.drawable.ic_github)
+                  gh.setPadding(dp(10), dp(10), dp(10), dp(10))
+                  val fondoGh = GradientDrawable()
+                  fondoGh.shape = GradientDrawable.OVAL
+                  fondoGh.setColor(Color.argb(70, 255, 255, 255))
+                  gh.background = fondoGh
+                  gh.contentDescription = "GitHub"
+                  gh.setOnClickListener { abrirGitHub() }
+                  val lpGh = FrameLayout.LayoutParams(dp(48), dp(48), Gravity.LEFT or Gravity.BOTTOM)
+                  lpGh.setMargins(dp(12), 0, 0, dp(72))
+                  contenedor.addView(gh, lpGh)
+
+                  root.addView(
+                      contenedor,
+                      FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          ViewGroup.LayoutParams.MATCH_PARENT
+                      )
+                  )
+                  inicio = contenedor
+                  traerAlFrente()
+              }
+
+              // Verifica los archivos en segundo plano y muestra el resultado en la zona central
+              private fun verificarDisco(zona: LinearLayout) {
+                  val id = ++idEscaneo
+                  discoListo = null
+                  val prog = texto(
+                      tr("Verifying disc files…", "Verificando archivos del disco…"),
+                      15f, false, Color.LTGRAY
+                  )
+                  zona.addView(prog)
+                  ejecutor.execute {
+                      val r = escanear { msg -> runOnUiThread { if (id == idEscaneo) prog.text = msg } }
+                      runOnUiThread {
+                          if (id == idEscaneo && !isFinishing) {
+                              discoListo = r.disco
+                              zona.removeAllViews()
+                              mostrarResultado(zona, r)
+                          }
+                      }
+                  }
+              }
+
+              private fun mostrarResultado(zona: LinearLayout, r: Resultado) {
+                  val d = r.disco
+                  if (d != null) {
+                      zona.addView(texto(tr("Valid disc found:", "Disco válido encontrado:") + "\n" + d.nombre))
+                      zona.addView(boton(tr("▶  Start", "▶  Iniciar")) { iniciarJuego() })
+                      return
+                  }
+                  if (!r.carpetaOk) {
+                      zona.addView(texto(tr("Folder not found:", "No se encontró la carpeta:")))
+                  } else {
+                      zona.addView(texto(tr("No valid disc found in:", "No se encontró un disco válido en:")))
+                  }
+                  zona.addView(texto(DISC_FOLDER, 15f, false, Color.YELLOW))
+                  if (r.binOk && !r.cueOk) {
+                      zona.addView(
+                          texto(
+                              tr(
+                                  "The .bin is valid, but the matching .cue is missing.",
+                                  "El .bin es válido, pero falta el .cue correspondiente."
+                              ), 14f, false, Color.CYAN
+                          )
+                      )
+                  }
+                  if (r.cueOk && !r.binOk) {
+                      zona.addView(
+                          texto(
+                              tr(
+                                  "The .cue is valid, but the matching .bin is missing.",
+                                  "El .cue es válido, pero falta el .bin correspondiente."
+                              ), 14f, false, Color.CYAN
+                          )
+                      )
+                  }
+                  zona.addView(
+                      texto(
+                          tr(
+                              "Accepted discs (file names don't matter, but they must be the exact originals):\n" +
+                                  "• Digimon World (USA): .bin + .cue, both in this folder\n" +
+                                  "• Digimon World (Japan): .iso",
+                              "Discos aceptados (los nombres no importan, pero deben ser los archivos originales exactos):\n" +
+                                  "• Digimon World (USA): .bin + .cue, ambos en esta carpeta\n" +
+                                  "• Digimon World (Japan): .iso"
+                          ), 13f, false, Color.LTGRAY
+                      )
+                  )
+                  zona.addView(boton(tr("Check again", "Comprobar de nuevo")) { mostrarInicio() })
+              }
+
+              private fun textoGamepad(): String {
+                  val estado = if (ajustes.modoGamepad) tr("On", "Activado") else tr("Off", "Desactivado")
+                  return "🎮  " + tr("Gamepad mode: ", "Modo Gamepad: ") + estado
+              }
+
+              private fun abrirGitHub() {
+                  try {
+                      startActivity(
+                          Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/elpollopaco/DigiDroidWorld"))
+                      )
+                  } catch (e: Exception) {
+                      // sin navegador disponible
+                  }
+              }
+
+              private fun elegirIdioma() {
+                  AlertDialog.Builder(this)
+                      .setTitle(tr("Language", "Idioma"))
+                      .setItems(arrayOf("English", "Español")) { _, cual ->
+                          ajustes.idioma = if (cual == 1) "es" else "en"
+                          mostrarInicio()
+                      }
+                      .show()
+              }
+
+              // ---------- Juego ----------
+              private fun iniciarJuego() {
+                  if (retroView != null) return
+                  val disco = discoListo
+                  if (disco == null) {
+                      mostrarInicio()
+                      return
+                  }
+                  inicio?.let { root.removeView(it) }
+                  inicio = null
+                  quitarControles()
+
+                  val saves = File(filesDir, "saves").apply { mkdirs() }
+                  // BIOS opcional: copia scph1001.bin en Android/data/<app>/files/system
+                  val system = File(getExternalFilesDir(null), "system").apply { mkdirs() }
+                  val enhanced = if (ajustes.resolucion >= 2) "enabled" else "disabled"
+
+                  val data = GLRetroViewData(this).apply {
+                      coreFilePath = CORE_LIB
+                      gameFilePath = disco.ruta
+                      systemDirectory = system.absolutePath
+                      savesDirectory = saves.absolutePath
+                      saveRAMState = if (sramFile.exists()) sramFile.readBytes() else null
+                      preferLowLatencyAudio = true
+                      variables = arrayOf(Variable("pcsx_rearmed_neon_enhancement_enable", enhanced))
+                  }
+                  val view = GLRetroView(this, data)
+                  lifecycle.addObserver(view)
+                  root.addView(
+                      view,
+                      FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          ViewGroup.LayoutParams.MATCH_PARENT
+                      )
+                  )
+                  retroView = view
+                  enviar = { a, k -> view.sendKeyEvent(a, k, 0) }
+                  construirControles(false)
+                  if (!ajustes.modoGamepad) {
+                      crearEngranaje()
+                  } else {
+                      // En Modo Gamepad no hay engranaje: avisar de cómo abrir los ajustes
+                      Toast.makeText(
+                          this,
+                          tr(
+                              "Press START + SELECT to open settings",
+                              "Presiona START + SELECT para abrir los ajustes"
+                          ),
+                          Toast.LENGTH_LONG
+                      ).show()
+                  }
+              }
+
+              private fun guardarMemoryCard() {
+                  val v = retroView ?: return
+                  try {
+                      val bytes = runBlocking { v.serializeSRAM() }
+                      sramFile.parentFile?.mkdirs()
+                      sramFile.writeBytes(bytes)
+                  } catch (e: Exception) {
+                      // sin guardado esta vez
+                  }
+              }
+
+              private fun reiniciarApp() {
+                  capaControles?.soltarTodos()
+                  guardarMemoryCard()
+                  val i = packageManager.getLaunchIntentForPackage(packageName)
+                  if (i != null) {
+                      i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                      i.putExtra("autostart", true)
+                      startActivity(i)
+                  }
+                  Process.killProcess(Process.myPid())
+              }
+
+              private fun crearEngranaje() {
+                  val g = TextView(this)
+                  g.text = "⚙"
+                  g.textSize = 22f
+                  g.setTextColor(Color.WHITE)
+                  g.gravity = Gravity.CENTER
+                  g.alpha = 0.55f
+                  g.setBackgroundColor(Color.argb(60, 255, 255, 255))
+                  g.setOnClickListener { mostrarAjustes() }
+                  val lp = FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+                  lp.topMargin = dp(6)
+                  root.addView(g, lp)
+                  engranaje = g
+                  traerAlFrente()
+              }
+
+              // ---------- Controles ----------
+              private fun construirControles(editar: Boolean) {
+                  quitarControles()
+                  if (ajustes.modoGamepad) return // Modo Gamepad: sin controles táctiles
+                  val capa = CapaControles(this)
+                  capa.edicion = editar
+                  capaControles = capa
+                  root.addView(
+                      capa,
+                      FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          ViewGroup.LayoutParams.MATCH_PARENT
+                      )
+                  )
+                  val e = ajustes.tamano / 100f
+                  val d = resources.displayMetrics.density
+                  for (c in definiciones()) {
+                      val b = PadButton(this, c.label, c.key, ajustes, { a, k -> enviar(a, k) }, c.round, c.hit, c.icon)
+                      b.editMode = editar
+                      val lp = FrameLayout.LayoutParams(dp(c.w * e), dp(c.h * e), c.g)
+                      lp.setMargins(dp(c.l * e), dp(c.t * e), dp(c.r * e), dp(c.b * e))
+                      b.translationX = ajustes.dx(c.key) * d
+                      b.translationY = ajustes.dy(c.key) * d
+                      capa.addView(b, lp)
+                      botones.add(b)
+                  }
+                  val js = Joystick(this, JOY_ID, ajustes) { a, k -> enviar(a, k) }
+                  js.editMode = editar
+                  val ladoJoy = 150f * e
+                  val lpJoy = FrameLayout.LayoutParams(dp(ladoJoy), dp(ladoJoy), Gravity.LEFT or Gravity.BOTTOM)
+                  lpJoy.setMargins(dp(24 * e), 0, 0, dp(28 * e))
+                  js.translationX = ajustes.dx(JOY_ID) * d
+                  js.translationY = ajustes.dy(JOY_ID) * d
+                  capa.addView(js, lpJoy)
+                  capa.joystick = js
+                  joystick = js
+                  traerAlFrente()
+              }
+
+              private fun quitarControles() {
+                  capaControles?.soltarTodos()
+                  capaControles?.let { root.removeView(it) }
+                  capaControles = null
+                  joystick = null
+                  botones.clear()
+              }
+
+              // ---------- Ajustes ----------
+              private fun mostrarAjustes(nuevo: Boolean = true) {
+                  if (panel != null) return
+                  if (nuevo) resInicial = ajustes.resolucion
+                  val enJuego = retroView != null
+                  inicio?.visibility = View.INVISIBLE
+                  if (!enJuego && capaControles == null) construirControles(false)
+
+                  val scroll = ScrollView(this)
+                  scroll.setBackgroundColor(Color.argb(225, 12, 12, 24))
+                  val col = LinearLayout(this)
+                  col.orientation = LinearLayout.VERTICAL
+                  col.setPadding(dp(20), dp(12), dp(20), dp(12))
+                  scroll.addView(col)
+
+                  col.addView(texto(tr("Settings", "Ajustes"), 22f, true))
+
+                  // Resolución
+                  col.addView(texto(tr("Resolution", "Resolución"), 16f, true))
+                  val grupo = RadioGroup(this)
+                  grupo.orientation = RadioGroup.HORIZONTAL
+                  grupo.gravity = Gravity.CENTER
+                  val r1 = RadioButton(this)
+                  r1.id = View.generateViewId()
+                  r1.text = tr("1x (default)", "1x (predeterminada)")
+                  val r2 = RadioButton(this)
+                  r2.id = View.generateViewId()
+                  r2.text = "2x"
+                  grupo.addView(r1)
+                  grupo.addView(r2)
+                  grupo.check(if (ajustes.resolucion >= 2) r2.id else r1.id)
+                  grupo.setOnCheckedChangeListener { _, id -> ajustes.resolucion = if (id == r2.id) 2 else 1 }
+                  col.addView(grupo)
+                  if (enJuego) {
+                      col.addView(
+                          texto(
+                              tr("Changing the resolution restarts the game.", "Cambiar la resolución reinicia el juego."),
+                              13f, false, Color.LTGRAY
+                          )
+                      )
+                  }
+
+                  if (!ajustes.modoGamepad) {
+                      // Controles
+                      col.addView(texto(tr("Controls", "Controles"), 16f, true))
+                      val tamTxt = texto(tr("Size: ", "Tamaño: ") + ajustes.tamano + "%", 14f)
+                      col.addView(tamTxt)
+                      val tam = SeekBar(this)
+                      tam.max = 100
+                      tam.progress = ajustes.tamano - 50
+                      tam.setOnSeekBarChangeListener(cambio { p ->
+                          ajustes.tamano = p + 50
+                          tamTxt.text = tr("Size: ", "Tamaño: ") + ajustes.tamano + "%"
+                          construirControles(enEdicion)
+                      })
+                      col.addView(tam)
+
+                      val opaTxt = texto(tr("Opacity: ", "Opacidad: ") + ajustes.opacidad + "%", 14f)
+                      col.addView(opaTxt)
+                      val opa = SeekBar(this)
+                      opa.max = 90
+                      opa.progress = ajustes.opacidad - 10
+                      opa.setOnSeekBarChangeListener(cambio { p ->
+                          ajustes.opacidad = p + 10
+                          opaTxt.text = tr("Opacity: ", "Opacidad: ") + ajustes.opacidad + "%"
+                          botones.forEach { it.invalidate() }
+                          joystick?.invalidate()
+                      })
+                      col.addView(opa)
+
+                      col.addView(boton(tr("Move controls", "Mover controles")) { entrarEdicion() })
+                  }
+                  if (!ajustes.modoGamepad) {
+                      col.addView(boton(tr("Reset all", "Restablecer todo")) {
+                          ajustes.restablecer()
+                          cerrarPanel()
+                          construirControles(false)
+                          mostrarAjustes(false)
+                      })
+                  }
+                  col.addView(boton(tr("Close", "Cerrar")) { cerrarAjustes() })
+
+                  root.addView(
+                      scroll,
+                      FrameLayout.LayoutParams(
+                          dp(380),
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          Gravity.CENTER_HORIZONTAL
+                      )
+                  )
+                  panel = scroll
+                  traerAlFrente()
+              }
+
+              private fun cerrarPanel() {
+                  panel?.let { root.removeView(it) }
+                  panel = null
+              }
+
+              private fun cerrarAjustes() {
+                  cerrarPanel()
+                  inicio?.visibility = View.VISIBLE
+                  if (retroView == null) {
+                      quitarControles()
+                      return
+                  }
+                  if (ajustes.resolucion != resInicial) {
+                      AlertDialog.Builder(this)
+                          .setTitle(tr("Change resolution", "Cambiar resolución"))
+                          .setMessage(
+                              tr(
+                                  "The game will restart and any progress you haven't saved in the game will be lost. Continue?",
+                                  "El juego se reiniciará y se perderá el progreso que no hayas guardado dentro del juego. ¿Continuar?"
+                              )
+                          )
+                          .setPositiveButton(tr("Restart", "Reiniciar")) { _, _ -> reiniciarApp() }
+                          .setNegativeButton(tr("Cancel", "Cancelar")) { _, _ -> ajustes.resolucion = resInicial }
+                          .setCancelable(false)
+                          .show()
+                  }
+              }
+
+              private fun entrarEdicion() {
+                  cerrarPanel()
+                  enEdicion = true
+                  capaControles?.edicion = true
+                  engranaje?.visibility = View.GONE
+                  botones.forEach {
+                      it.editMode = true
+                      it.invalidate()
+                  }
+                  joystick?.let {
+                      it.editMode = true
+                      it.invalidate()
+                  }
+                  val barra = LinearLayout(this)
+                  barra.orientation = LinearLayout.HORIZONTAL
+                  barra.gravity = Gravity.CENTER
+                  barra.setBackgroundColor(Color.argb(200, 0, 0, 0))
+                  barra.setPadding(dp(12), dp(6), dp(12), dp(6))
+                  barra.addView(texto(tr("Drag the buttons to move them", "Arrastra los botones para moverlos"), 14f))
+                  val listo = boton(tr("Done", "Listo")) { salirEdicion() }
+                  listo.layoutParams = LinearLayout.LayoutParams(dp(110), ViewGroup.LayoutParams.WRAP_CONTENT)
+                  barra.addView(listo)
+                  root.addView(
+                      barra,
+                      FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.WRAP_CONTENT,
+                          ViewGroup.LayoutParams.WRAP_CONTENT,
+                          Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                      )
+                  )
+                  barraEdicion = barra
+                  traerAlFrente()
+              }
+
+              private fun salirEdicion() {
+                  barraEdicion?.let { root.removeView(it) }
+                  barraEdicion = null
+                  enEdicion = false
+                  capaControles?.edicion = false
+                  engranaje?.visibility = View.VISIBLE
+                  botones.forEach {
+                      it.editMode = false
+                      it.invalidate()
+                  }
+                  joystick?.let {
+                      it.editMode = false
+                      it.invalidate()
+                  }
+                  mostrarAjustes(false)
+              }
+
+              // Mandos físicos. En Modo Gamepad, START + SELECT (en cualquier orden) abre/cierra los ajustes.
+              override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+                  val v = retroView
+                  // Comparar con == (no != 0): SOURCE_GAMEPAD comparte un bit con SOURCE_KEYBOARD
+                  val esMando = (event.source and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
+                      (event.source and InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD
+                  val esVolumen = event.keyCode == KeyEvent.KEYCODE_VOLUME_UP ||
+                      event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN ||
+                      event.keyCode == KeyEvent.KEYCODE_VOLUME_MUTE
+                  if (v != null && esMando && !esVolumen && event.keyCode != KeyEvent.KEYCODE_BACK &&
+                      (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP)
+                  ) {
+                      val k = event.keyCode
+                      val abajo = event.action == KeyEvent.ACTION_DOWN
+                      if (k == KeyEvent.KEYCODE_BUTTON_START || k == KeyEvent.KEYCODE_BUTTON_SELECT) {
+                          if (k == KeyEvent.KEYCODE_BUTTON_START) startDown = abajo else selectDown = abajo
+                          if (ajustes.modoGamepad && startDown && selectDown && !comboUsado) {
+                              comboUsado = true
+                              // Soltar ambos botones en el juego para que no se queden pulsados
+                              v.sendKeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BUTTON_START, 0)
+                              v.sendKeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BUTTON_SELECT, 0)
+                              if (enEdicion) {
+                                  // nada: en Modo Gamepad no hay edición de controles
+                              } else if (panel != null) {
+                                  cerrarAjustes()
+                              } else {
+                                  mostrarAjustes()
+                              }
+                              return true
+                          }
+                          if (!startDown && !selectDown) comboUsado = false
+                          if (comboUsado) return true // ignorar hasta soltar ambos
+                      }
+                      v.sendKeyEvent(event.action, k, 0)
+                      return true
+                  }
+                  return super.dispatchKeyEvent(event)
+              }
+          }
+          EOF
+
+          sed -i "s|__DISC_FOLDER__|${DISC_FOLDER}|" app/src/main/java/org/elpollopaco/digimonworld/MainActivity.kt
+          sed -i "s|versionName = \"1.0\"|versionName = \"${APP_VERSION}\"|" app/build.gradle.kts
+          sed -i "s|versionCode = 1|versionCode = ${RUN_NUMBER}|" app/build.gradle.kts
+
+      - name: Icono de la app (opcional - sube icon.png a la raíz del repo)
+        run: |
+          if [ -f icon.png ]; then
+            mkdir -p p/app/src/main/res/mipmap-xxxhdpi
+            cp icon.png p/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+            sed -i 's|@android:drawable/sym_def_app_icon|@mipmap/ic_launcher|' p/app/src/main/AndroidManifest.xml
+          fi
+
+      - name: Descargar núcleo PCSX ReARMed (arm64)
+        run: |
+          curl -fL -o core.zip https://buildbot.libretro.com/nightly/android/latest/arm64-v8a/pcsx_rearmed_libretro_android.so.zip
+          unzip -o core.zip -d core_tmp
+          cp core_tmp/pcsx_rearmed_libretro_android.so p/app/src/main/jniLibs/arm64-v8a/libpcsx_rearmed_libretro_android.so
+          ls -l p/app/src/main/jniLibs/arm64-v8a/
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Compilar APK
+        working-directory: p
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digimon-world-apk
+          path: p/app/build/outputs/apk/debug/app-debug.apk
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VERSION }}-build${{ github.run_number }}
+          name: Digimon World v${{ env.APP_VERSION }} (build ${{ github.run_number }})
+          files: p/app/build/outputs/apk/debug/app-debug.apk
