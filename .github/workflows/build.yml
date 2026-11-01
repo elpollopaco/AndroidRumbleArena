@@ -1,8 +1,8 @@
-# Digimon World - APK con emulador de PS1 incluido (LibretroDroid + PCSX ReARMed)
+# Digimon Rumble Arena - APK con emulador de PS1 incluido (LibretroDroid + PCSX ReARMed)
 # Guarda este archivo en tu repositorio como: .github/workflows/build.yml
-# Luego: pestaña Actions > "Build Digimon World APK" > Run workflow.
+# Luego: pestaña Actions > "Build Digimon Rumble Arena APK" > Run workflow.
 # El APK aparece en Releases (y como artefacto de la ejecución).
-name: Build Digimon World APK
+name: Build Digimon Rumble Arena APK
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ jobs:
         env:
           RUN_NUMBER: ${{ github.run_number }}
         run: |
-          mkdir -p p/app/src/main/java/org/elpollopaco/digimonworld p/app/src/main/jniLibs/arm64-v8a p/app/src/main/res/drawable
+          mkdir -p p/app/src/main/java/org/elpollopaco/digimonrumblearena p/app/src/main/jniLibs/arm64-v8a p/app/src/main/res/drawable
           cd p
 
           # Iconos de los botones (PNG incrustados en base64)
@@ -377,7 +377,7 @@ jobs:
                   maven("https://jitpack.io")
               }
           }
-          rootProject.name = "DigimonWorld"
+          rootProject.name = "DigimonRumbleArena"
           include(":app")
           EOF
 
@@ -400,10 +400,10 @@ jobs:
           }
 
           android {
-              namespace = "org.elpollopaco.digimonworld"
+              namespace = "org.elpollopaco.digimonrumblearena"
               compileSdk = 34
               defaultConfig {
-                  applicationId = "org.elpollopaco.digimonworld"
+                  applicationId = "org.elpollopaco.digimonrumblearena"
                   minSdk = 26
                   targetSdk = 34
                   versionCode = 1
@@ -432,7 +432,7 @@ jobs:
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
               <uses-feature android:glEsVersion="0x00030000" android:required="true" />
               <application
-                  android:label="Digimon World"
+                  android:label="Digimon Rumble Arena"
                   android:icon="@android:drawable/sym_def_app_icon"
                   android:theme="@style/Theme.AppCompat.NoActionBar">
                   <activity
@@ -463,8 +463,8 @@ jobs:
           </vector>
           EOF
 
-          cat > app/src/main/java/org/elpollopaco/digimonworld/MainActivity.kt <<'EOF'
-          package org.elpollopaco.digimonworld
+          cat > app/src/main/java/org/elpollopaco/digimonrumblearena/MainActivity.kt <<'EOF'
+          package org.elpollopaco.digimonrumblearena
 
           import android.Manifest
           import android.content.Context
@@ -1762,7 +1762,7 @@ jobs:
           }
           EOF
 
-          sed -i "s|__DISC_FOLDER__|${DISC_FOLDER}|" app/src/main/java/org/elpollopaco/digimonworld/MainActivity.kt
+          sed -i "s|__DISC_FOLDER__|${DISC_FOLDER}|" app/src/main/java/org/elpollopaco/digimonrumblearena/MainActivity.kt
           sed -i "s|versionName = \"1.0\"|versionName = \"${APP_VERSION}\"|" app/build.gradle.kts
           sed -i "s|versionCode = 1|versionCode = ${RUN_NUMBER}|" app/build.gradle.kts
 
@@ -1791,11 +1791,11 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: digimon-world-apk
+          name: digimon-rumble-arena-apk
           path: p/app/build/outputs/apk/debug/app-debug.apk
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.APP_VERSION }}-build${{ github.run_number }}
-          name: Digimon World v${{ env.APP_VERSION }} (build ${{ github.run_number }})
+          tag_name: rumble-v${{ env.APP_VERSION }}-build${{ github.run_number }}
+          name: Digimon Rumble Arena v${{ env.APP_VERSION }} (build ${{ github.run_number }})
           files: p/app/build/outputs/apk/debug/app-debug.apk
