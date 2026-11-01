@@ -936,18 +936,16 @@ jobs:
           // La cruceta fue reemplazada por el Joystick (clase Joystick, más arriba).
           private fun definiciones(): List<Def> {
               val da = Gravity.RIGHT or Gravity.BOTTOM
-              val dar = Gravity.RIGHT or Gravity.TOP
               val ca = Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM
               return listOf(
-                  // Acción (por posición: A=abajo=Cruz, B=derecha=Círculo)
-                  Def("△", KeyEvent.KEYCODE_BUTTON_Y, 56, 56, da, 0, 0, 45, 139, true, 1f, R.drawable.ic_especial2),
-                  Def("✕", KeyEvent.KEYCODE_BUTTON_A, 56, 56, da, 0, 0, 74, 38, true, 1f, R.drawable.ic_salto),
-                  Def("□", KeyEvent.KEYCODE_BUTTON_X, 56, 56, da, 0, 0, 160, 70, true, 1f, R.drawable.ic_ataque),
-                  Def("○", KeyEvent.KEYCODE_BUTTON_B, 56, 56, da, 0, 0, 110, 119, true, 1f, R.drawable.ic_especial1),
+                  // Caras (LibretroDroid pasa A/B/X/Y por nombre al RetroPad; en PS1: B=Cruz, A=Círculo, Y=Cuadrado, X=Triángulo)
+                  Def("△", KeyEvent.KEYCODE_BUTTON_X, 56, 56, da, 0, 0, 45, 139, true, 1f, R.drawable.ic_especial2),
+                  Def("✕", KeyEvent.KEYCODE_BUTTON_B, 56, 56, da, 0, 0, 74, 38, true, 1f, R.drawable.ic_salto),
+                  Def("□", KeyEvent.KEYCODE_BUTTON_Y, 56, 56, da, 0, 0, 160, 70, true, 1f, R.drawable.ic_ataque),
+                  Def("○", KeyEvent.KEYCODE_BUTTON_A, 56, 56, da, 0, 0, 110, 119, true, 1f, R.drawable.ic_especial1),
                   // Gatillos
-                  Def("L2", KeyEvent.KEYCODE_BUTTON_L2, 64, 40, da, 0, 0, 104, 190, false, 1f, R.drawable.ic_digievolucion),
+                  Def("R1", KeyEvent.KEYCODE_BUTTON_R1, 64, 40, da, 0, 0, 104, 190, false, 1f, R.drawable.ic_digievolucion),
                   Def("L1", KeyEvent.KEYCODE_BUTTON_L1, 64, 40, da, 0, 0, 182, 136, false, 1f, R.drawable.ic_defensa),
-                  Def("R1", KeyEvent.KEYCODE_BUTTON_R1, 64, 40, dar, 0, 64, 16, 0, false, 1f),
                   // Select / Start
                   Def("SELECT", KeyEvent.KEYCODE_BUTTON_SELECT, 84, 34, ca, -83, 0, 0, 14, false, 1f),
                   Def("START", KeyEvent.KEYCODE_BUTTON_START, 84, 34, ca, 118, 0, 0, 14, false, 1f),
